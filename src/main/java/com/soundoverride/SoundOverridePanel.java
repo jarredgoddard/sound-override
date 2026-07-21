@@ -87,7 +87,9 @@ public class SoundOverridePanel extends PluginPanel
 		for (SoundOverridePlugin.Preset preset : SoundOverridePlugin.Preset.values())
 		{
 			File f = presets.get(preset);
-			listPanel.add(row(preset.fileName + ".wav", f));
+			boolean bundled = plugin.getBundledPresets().contains(preset);
+			listPanel.add(row(preset.fileName + ".wav", f,
+				bundled ? "sounds/" + preset.fileName + ".wav" : null));
 		}
 
 		listPanel.add(Box.createVerticalStrut(10));
@@ -103,7 +105,7 @@ public class SoundOverridePanel extends PluginPanel
 		{
 			ids.entrySet().stream()
 				.sorted(Map.Entry.comparingByKey())
-				.forEach(e -> listPanel.add(row(e.getKey() + ".wav", e.getValue())));
+				.forEach(e -> listPanel.add(row(e.getKey() + ".wav", e.getValue(), null)));
 		}
 
 		listPanel.revalidate();
@@ -118,23 +120,43 @@ public class SoundOverridePanel extends PluginPanel
 		return label;
 	}
 
-	private JPanel row(String name, File file)
+	private JPanel row(String name, File file, String bundledResource)
 	{
 		JPanel row = new JPanel(new BorderLayout(6, 0));
 		row.setBackground(ColorScheme.DARK_GRAY_COLOR);
 		row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 26));
 
-		JLabel label = new JLabel(name);
-		label.setForeground(file != null ? Color.WHITE : ColorScheme.MEDIUM_GRAY_COLOR);
-		label.setToolTipText(file != null ? file.getAbsolutePath() : "No file in sound-overrides folder");
+		JLabel label = new JLabel(name + (file == null && bundledResource != null ? "  (bundled)" : ""));
+		if (file != null)
+		{
+			label.setForeground(Color.WHITE);
+			label.setToolTipText(file.getAbsolutePath());
+		}
+		else if (bundledResource != null)
+		{
+			label.setForeground(ColorScheme.BRAND_ORANGE);
+			label.setToolTipText("Bundled default — add " + name + " to the sound-overrides folder to override");
+		}
+		else
+		{
+			label.setForeground(ColorScheme.MEDIUM_GRAY_COLOR);
+			label.setToolTipText("No bundled default and no file in sound-overrides folder");
+		}
 		row.add(label, BorderLayout.CENTER);
 
-		if (file != null)
+		if (file != null || bundledResource != null)
 		{
 			JButton play = new JButton("▶");
 			play.setMargin(new java.awt.Insets(0, 6, 0, 6));
 			play.setToolTipText("Play through the plugin's sound path");
-			play.addActionListener(e -> soundManager.play(file, config.volume()));
+			if (file != null)
+			{
+				play.addActionListener(e -> soundManager.play(file, config.volume()));
+			}
+			else
+			{
+				play.addActionListener(e -> soundManager.playBundled(bundledResource, config.volume()));
+			}
 			row.add(play, BorderLayout.EAST);
 		}
 

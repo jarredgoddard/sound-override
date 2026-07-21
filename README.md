@@ -1,4 +1,4 @@
-# Sound Override
+# Slyestcat Sound Pack
 
 Replace RuneScape's sound effects and announce game events with **your own audio**.
 

@@ -44,6 +44,23 @@ public class SoundManager
 		});
 	}
 
+	/**
+	 * Plays a wav bundled inside the plugin jar, e.g. "sounds/level_up.wav".
+	 */
+	public void playBundled(String resourcePath, int volume)
+	{
+		executor.submit(() -> {
+			try
+			{
+				audioPlayer.play(SoundOverridePlugin.class, resourcePath, volumeToGainDb(volume));
+			}
+			catch (Exception e)
+			{
+				log.warn("Failed to play bundled {}: {}", resourcePath, e.getMessage());
+			}
+		});
+	}
+
 	private static float volumeToGainDb(int volume)
 	{
 		// Linear 0-100 -> dB; clamp so 0 becomes effectively silent rather than -Infinity

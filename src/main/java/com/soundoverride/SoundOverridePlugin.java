@@ -41,7 +41,7 @@ import net.runelite.client.util.Text;
 
 @Slf4j
 @PluginDescriptor(
-	name = "Sound Override",
+	name = "Slyestcat Sound Pack",
 	description = "Replace game sound effects and play custom audio on game events",
 	tags = {"sound", "audio", "custom", "override", "level", "quest", "collection log", "pet", "death", "spec"}
 )
@@ -111,6 +111,8 @@ public class SoundOverridePlugin extends Plugin
 	private final Set<Integer> disabledIds = new HashSet<>();
 	// preset name -> custom wav (event-triggered, plays over any vanilla jingle)
 	private final Map<Preset, File> presetSounds = new EnumMap<>(Preset.class);
+	// presets with a default sound packed into the plugin jar
+	private final java.util.Set<Preset> bundledPresets = java.util.EnumSet.noneOf(Preset.class);
 	// fixed sound effect id -> preset (true replacements, from odablock-sounds SoundIds)
 	private static final Map<Integer, Preset> FIXED_SOUND_PRESETS = new HashMap<>();
 	static
@@ -193,11 +195,23 @@ public class SoundOverridePlugin extends Plugin
 		{
 			SOUND_DIR.mkdirs();
 		}
+
+		// Detect which presets ship with a bundled default in the jar
+		bundledPresets.clear();
+		for (Preset preset : Preset.values())
+		{
+			if (SoundOverridePlugin.class.getResource("sounds/" + preset.fileName + ".wav") != null)
+			{
+				bundledPresets.add(preset);
+			}
+		}
+		log.debug("{} bundled preset sounds found", bundledPresets.size());
+
 		loadOverrides();
 
 		panel = new SoundOverridePanel(this, soundManager, config);
 		navButton = net.runelite.client.ui.NavigationButton.builder()
-			.tooltip("Sound Override")
+			.tooltip("Slyestcat Sound Pack")
 			.icon(net.runelite.client.util.ImageUtil.loadImageResource(SoundOverridePlugin.class, "panel_icon.png"))
 			.priority(9)
 			.panel(panel)
@@ -227,6 +241,11 @@ public class SoundOverridePlugin extends Plugin
 	Map<Preset, File> getPresetSounds()
 	{
 		return presetSounds;
+	}
+
+	java.util.Set<Preset> getBundledPresets()
+	{
+		return bundledPresets;
 	}
 
 	Map<Integer, File> getIdOverrides()
@@ -287,14 +306,19 @@ public class SoundOverridePlugin extends Plugin
 			if (preset.fileName.equals(arg))
 			{
 				File f = presetSounds.get(preset);
-				if (f == null)
+				if (f != null)
 				{
-					chat("No wav loaded for preset '" + arg + "' — expected " + arg + ".wav in the sound-overrides folder.");
+					chat("Playing preset " + arg + " (folder override)");
+					soundManager.play(f, config.volume());
+				}
+				else if (bundledPresets.contains(preset))
+				{
+					chat("Playing preset " + arg + " (bundled)");
+					soundManager.playBundled("sounds/" + preset.fileName + ".wav", config.volume());
 				}
 				else
 				{
-					chat("Playing preset " + arg + " (" + f.getName() + ")");
-					soundManager.play(f, config.volume());
+					chat("No sound for preset '" + arg + "' — no bundled default and no " + arg + ".wav in the sound-overrides folder.");
 				}
 				return;
 			}
@@ -363,20 +387,20 @@ public class SoundOverridePlugin extends Plugin
 	{
 		// Fixed-ID preset replacements (redemption, spec weapons, ruby bolt, bank pin, Zebak)
 		Preset fixed = FIXED_SOUND_PRESETS.get(soundId);
-		if (fixed != null && presetEnabled(fixed) && presetSounds.containsKey(fixed))
+		if (fixed != null && presetEnabled(fixed) && hasSound(fixed))
 		{
 			consume.run();
-			soundManager.play(presetSounds.get(fixed), config.volume());
+			playPreset(fixed);
 			return;
 		}
 
 		// Ectophial preset: user-configurable sound ID
 		if (config.ectophialEnabled()
 			&& soundId == config.ectophialSoundId()
-			&& presetSounds.containsKey(Preset.ECTOPHIAL))
+			&& hasSound(Preset.ECTOPHIAL))
 		{
 			consume.run();
-			soundManager.play(presetSounds.get(Preset.ECTOPHIAL), config.volume());
+			playPreset(Preset.ECTOPHIAL);
 			return;
 		}
 
@@ -681,7 +705,17 @@ public class SoundOverridePlugin extends Plugin
 		if (sound != null)
 		{
 			soundManager.play(sound, config.volume());
+			return;
 		}
+		if (bundledPresets.contains(preset))
+		{
+			soundManager.playBundled("sounds/" + preset.fileName + ".wav", config.volume());
+		}
+	}
+
+	private boolean hasSound(Preset preset)
+	{
+		return presetSounds.containsKey(preset) || bundledPresets.contains(preset);
 	}
 
 	// ------------------------------------------------------------------
