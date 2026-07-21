@@ -5,7 +5,6 @@ import java.io.File;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -99,19 +98,8 @@ public class SoundOverridePlugin extends Plugin
 	@Inject
 	private SoundManager soundManager;
 
-	@Inject
-	private net.runelite.client.ui.ClientToolbar clientToolbar;
-
-	@Inject
-	private ConfigManager configManager;
-
-	private SoundOverridePanel panel;
-	private net.runelite.client.ui.NavigationButton navButton;
-
 	// soundId -> custom wav (true replacement, vanilla sound consumed)
 	private final Map<Integer, File> idOverrides = new HashMap<>();
-	// IDs the user has disabled via config without deleting the wav
-	private final Set<Integer> disabledIds = new HashSet<>();
 	// preset name -> custom wav (event-triggered, plays over any vanilla jingle)
 	private final Map<Preset, File> presetSounds = new EnumMap<>(Preset.class);
 	// presets with a default sound packed into the plugin jar
@@ -215,59 +203,18 @@ public class SoundOverridePlugin extends Plugin
 		log.debug("{} bundled preset sounds found", bundledPresets.size());
 
 		loadOverrides();
-
-		panel = new SoundOverridePanel(this, soundManager, config, configManager);
-		navButton = net.runelite.client.ui.NavigationButton.builder()
-			.tooltip("Slyestcat Sound Pack")
-			.icon(net.runelite.client.util.ImageUtil.loadImageResource(SoundOverridePlugin.class, "panel_icon.png"))
-			.priority(9)
-			.panel(panel)
-			.build();
-		clientToolbar.addNavigation(navButton);
 	}
 
 	@Override
 	protected void shutDown()
 	{
-		if (navButton != null)
-		{
-			clientToolbar.removeNavigation(navButton);
-			navButton = null;
-		}
-		panel = null;
 		idOverrides.clear();
 		presetSounds.clear();
-		disabledIds.clear();
 		previousLevels.clear();
 		statsPopulated = false;
 		lastPrayer = -1;
 		coxEndedRaidTick = -1;
 		soundManager.close();
-	}
-
-	Map<Preset, File> getPresetSounds()
-	{
-		return presetSounds;
-	}
-
-	java.util.Set<Preset> getBundledPresets()
-	{
-		return bundledPresets;
-	}
-
-	Set<Integer> getDisabledIds()
-	{
-		return disabledIds;
-	}
-
-	Map<Integer, File> getIdOverrides()
-	{
-		return idOverrides;
-	}
-
-	void reloadOverrides()
-	{
-		loadOverrides();
 	}
 
 	@Subscribe
@@ -388,10 +335,6 @@ public class SoundOverridePlugin extends Plugin
 	@Subscribe
 	public void onAreaSoundEffectPlayed(AreaSoundEffectPlayed event)
 	{
-		if (!config.overrideAreaSounds())
-		{
-			return;
-		}
 		handleSoundEffect(event.getSoundId(), () -> event.consume());
 	}
 
@@ -416,20 +359,11 @@ public class SoundOverridePlugin extends Plugin
 			return;
 		}
 
-		if (config.idOverridesEnabled() && !disabledIds.contains(soundId))
+		File replacement = idOverrides.get(soundId);
+		if (replacement != null)
 		{
-			File replacement = idOverrides.get(soundId);
-			if (replacement != null)
-			{
-				consume.run();
-				soundManager.play(replacement, config.volume());
-				return;
-			}
-		}
-
-		if (config.logSoundIds())
-		{
-			log.info("Sound effect played: {}", soundId);
+			consume.run();
+			soundManager.play(replacement, config.volume());
 		}
 	}
 
@@ -770,23 +704,6 @@ public class SoundOverridePlugin extends Plugin
 	{
 		idOverrides.clear();
 		presetSounds.clear();
-		disabledIds.clear();
-
-		for (String part : config.disabledSoundIds().split(","))
-		{
-			try
-			{
-				String trimmed = part.trim();
-				if (!trimmed.isEmpty())
-				{
-					disabledIds.add(Integer.parseInt(trimmed));
-				}
-			}
-			catch (NumberFormatException e)
-			{
-				log.warn("Invalid entry in disabled sound IDs: '{}'", part.trim());
-			}
-		}
 
 		File[] files = SOUND_DIR.listFiles((dir, name) -> name.toLowerCase().endsWith(".wav"));
 		if (files == null)
@@ -819,10 +736,5 @@ public class SoundOverridePlugin extends Plugin
 		}
 
 		log.debug("Loaded {} ID overrides, {} presets", idOverrides.size(), presetSounds.size());
-
-		if (panel != null)
-		{
-			panel.refresh();
-		}
 	}
 }
