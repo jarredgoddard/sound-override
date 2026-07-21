@@ -98,8 +98,6 @@ public class SoundOverridePlugin extends Plugin
 	@Inject
 	private SoundManager soundManager;
 
-	// soundId -> custom wav (true replacement, vanilla sound consumed)
-	private final Map<Integer, File> idOverrides = new HashMap<>();
 	// preset name -> custom wav (event-triggered, plays over any vanilla jingle)
 	private final Map<Preset, File> presetSounds = new EnumMap<>(Preset.class);
 	// presets with a default sound packed into the plugin jar
@@ -108,6 +106,7 @@ public class SoundOverridePlugin extends Plugin
 	private static final Map<Integer, Preset> FIXED_SOUND_PRESETS = new HashMap<>();
 	static
 	{
+		FIXED_SOUND_PRESETS.put(200, Preset.TELEPORT);
 		FIXED_SOUND_PRESETS.put(2681, Preset.REDEMPTION);
 		FIXED_SOUND_PRESETS.put(2537, Preset.DDS_SPEC);
 		FIXED_SOUND_PRESETS.put(3869, Preset.AGS_SPEC);
@@ -133,7 +132,7 @@ public class SoundOverridePlugin extends Plugin
 		DIARY_COMPLETE("diary_complete", "Diary complete", "diaryCompleteEnabled"),
 		COLLECTION_LOG("collection_log", "Collection log", "collectionLogEnabled"),
 		RARE_DROP("rare_drop", "Rare drop", "rareDropEnabled"),
-		ECTOPHIAL("ectophial", "Ectophial teleport", "ectophialEnabled"),
+		TELEPORT("teleport", "Teleport", "teleportEnabled"),
 		// Ported from C Engineer: Completed
 		COMBAT_TASK("combat_task", "Combat task", "combatTaskEnabled"),
 		SLAYER_TASK("slayer_task", "Slayer task", "slayerTaskEnabled"),
@@ -208,7 +207,6 @@ public class SoundOverridePlugin extends Plugin
 	@Override
 	protected void shutDown()
 	{
-		idOverrides.clear();
 		presetSounds.clear();
 		previousLevels.clear();
 		statsPopulated = false;
@@ -240,9 +238,6 @@ public class SoundOverridePlugin extends Plugin
 			StringBuilder presets = new StringBuilder("Presets loaded: ");
 			presetSounds.keySet().forEach(p -> presets.append(p.fileName).append(" "));
 			chat(presetSounds.isEmpty() ? "No presets loaded." : presets.toString());
-			StringBuilder ids = new StringBuilder("ID overrides: ");
-			idOverrides.keySet().stream().sorted().forEach(i -> ids.append(i).append(" "));
-			chat(idOverrides.isEmpty() ? "No ID overrides loaded." : ids.toString());
 			return;
 		}
 
@@ -254,7 +249,7 @@ public class SoundOverridePlugin extends Plugin
 		String[] args = event.getArguments();
 		if (args.length == 0)
 		{
-			chat("Usage: ::sotest <preset name or sound ID> — e.g. ::sotest level_up or ::sotest 2739. ::solist to see what's loaded.");
+			chat("Usage: ::sotest <preset name> — e.g. ::sotest level_up. ::solist to see what's loaded.");
 			return;
 		}
 
@@ -283,24 +278,7 @@ public class SoundOverridePlugin extends Plugin
 			}
 		}
 
-		try
-		{
-			int soundId = Integer.parseInt(arg);
-			File f = idOverrides.get(soundId);
-			if (f == null)
-			{
-				chat("No override loaded for sound ID " + soundId + ".");
-			}
-			else
-			{
-				chat("Playing ID override " + soundId);
-				soundManager.play(f, config.volume());
-			}
-		}
-		catch (NumberFormatException e)
-		{
-			chat("Unknown preset '" + arg + "'. ::solist shows loaded sounds.");
-		}
+		chat("Unknown preset '" + arg + "'. ::solist shows loaded sounds.");
 	}
 
 	private void chat(String message)
@@ -349,22 +327,6 @@ public class SoundOverridePlugin extends Plugin
 			return;
 		}
 
-		// Ectophial preset: user-configurable sound ID
-		if (config.ectophialEnabled()
-			&& soundId == config.ectophialSoundId()
-			&& hasSound(Preset.ECTOPHIAL))
-		{
-			consume.run();
-			playPreset(Preset.ECTOPHIAL);
-			return;
-		}
-
-		File replacement = idOverrides.get(soundId);
-		if (replacement != null)
-		{
-			consume.run();
-			soundManager.play(replacement, config.volume());
-		}
 	}
 
 	boolean presetEnabled(Preset preset)
@@ -376,7 +338,7 @@ public class SoundOverridePlugin extends Plugin
 			case DIARY_COMPLETE: return config.diaryCompleteEnabled();
 			case COLLECTION_LOG: return config.collectionLogEnabled();
 			case RARE_DROP: return config.rareDropEnabled();
-			case ECTOPHIAL: return config.ectophialEnabled();
+			case TELEPORT: return config.teleportEnabled();
 			case COMBAT_TASK: return config.combatTaskEnabled();
 			case SLAYER_TASK: return config.slayerTaskEnabled();
 			case FARMING_CONTRACT: return config.farmingContractEnabled();
@@ -702,7 +664,6 @@ public class SoundOverridePlugin extends Plugin
 	 */
 	private void loadOverrides()
 	{
-		idOverrides.clear();
 		presetSounds.clear();
 
 		File[] files = SOUND_DIR.listFiles((dir, name) -> name.toLowerCase().endsWith(".wav"));
@@ -725,16 +686,9 @@ public class SoundOverridePlugin extends Plugin
 				}
 			}
 
-			try
-			{
-				idOverrides.put(Integer.parseInt(base), f);
-			}
-			catch (NumberFormatException e)
-			{
-				log.warn("Ignoring {} — name must be a known preset or numeric sound ID", f.getName());
-			}
+			log.warn("Ignoring {} — name must match a known preset", f.getName());
 		}
 
-		log.debug("Loaded {} ID overrides, {} presets", idOverrides.size(), presetSounds.size());
+		log.debug("Loaded {} presets", presetSounds.size());
 	}
 }

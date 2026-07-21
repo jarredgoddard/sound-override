@@ -2,24 +2,18 @@
 
 Replace RuneScape's sound effects and announce game events with **your own audio**.
 
-Unlike voice-pack plugins that ship a fixed set of recordings, Sound Override plays
-whatever WAV files *you* put in the sounds folder — record your own voice lines, use
-memes, use your friend's voice, whatever. It also supports **raw sound effect ID
-replacement**, letting you swap any in-game sound effect (teleports, specs, UI sounds)
-for a custom clip, not just achievement announcements.
+A bundled pack of custom sounds plays on game events and replaces a curated set of
+in-game sound effects (teleports, spec weapons, UI sounds). Every sound can be
+overridden with your own WAV files — record your own voice lines, use memes, use
+your friend's voice, whatever.
 
 ## How it works
 
 Drop 16-bit PCM `.wav` files into `~/.runelite/sound-overrides/` (the folder is created
 on first plugin start — on Windows: `C:\Users\<you>\.runelite\sound-overrides\`).
 
-Two kinds of files are recognized:
-
-1. **Preset names** — trigger on game events (see table below). Example: `level_up.wav`
-   plays whenever you gain a level.
-2. **Numeric sound IDs** — true replacements. Example: `2739.wav` consumes sound effect
-   2739 whenever the game plays it and plays your clip instead. Enable **Log sound IDs**
-   in the plugin config to discover IDs in-game.
+Files are recognized by preset name (see table below). Example: `level_up.wav`
+plays whenever you gain a level, overriding the bundled default if one ships.
 
 Every preset has its own on/off toggle in the plugin config. Toggling any config
 setting hot-reloads the sounds folder — no client restart needed.
@@ -55,7 +49,7 @@ setting hot-reloads the sounds folder — no client restart needed.
 | `ruby_bolt.wav` | Ruby bolt proc (replaces sound 2911) |
 | `bank_pin.wav` | Bank PIN buttons (replaces sound 1041) |
 | `zebak_roar.wav` | Zebak's roar (replaces sound 5829) |
-| `ectophial.wav` | Ectophial teleport (configurable sound ID) |
+| `teleport.wav` | Standard teleport sound (replaces sound 200) |
 
 \* Requires the corresponding in-game notification setting to be enabled.
 
@@ -83,8 +77,8 @@ BSD 2-Clause licensed — huge thanks to their authors:
   loot chest, TOA and CoX detection; CoX logic originally from
   [cox-light-colors](https://github.com/AnkouOSRS/cox-light-colors))
 
-This plugin differs from both by playing user-supplied audio instead of a bundled
-voice pack, and by supporting arbitrary sound effect ID replacement.
+This plugin differs from both by letting users replace every sound in the pack
+with their own audio files.
 
 ## Development
 

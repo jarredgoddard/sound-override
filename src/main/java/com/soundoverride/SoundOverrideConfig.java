@@ -122,11 +122,8 @@ public interface SoundOverrideConfig extends Config
 
 	// ---- Interactions & Misc ----
 
-	@ConfigItem(keyName = "ectophialEnabled", name = "Ectophial teleport", description = "Replace the ectophial teleport sound effect. File: ectophial.wav", position = 1, section = miscSection)
-	default boolean ectophialEnabled() { return true; }
-
-	@ConfigItem(keyName = "ectophialSoundId", name = "Ectophial sound ID", description = "Sound effect ID to treat as the ectophial teleport. Default 200 is the shared teleport sound", position = 2, section = miscSection)
-	default int ectophialSoundId() { return 200; }
+	@ConfigItem(keyName = "teleportEnabled", name = "Teleport", description = "Replace the standard teleport sound effect. File: teleport.wav", position = 1, section = miscSection)
+	default boolean teleportEnabled() { return true; }
 
 	@ConfigItem(keyName = "acceptTradeEnabled", name = "Accept trade", description = "Play sound when a trade is accepted. File: accept_trade.wav", position = 3, section = miscSection)
 	default boolean acceptTradeEnabled() { return true; }
