@@ -102,6 +102,9 @@ public class SoundOverridePlugin extends Plugin
 	@Inject
 	private net.runelite.client.ui.ClientToolbar clientToolbar;
 
+	@Inject
+	private ConfigManager configManager;
+
 	private SoundOverridePanel panel;
 	private net.runelite.client.ui.NavigationButton navButton;
 
@@ -137,48 +140,52 @@ public class SoundOverridePlugin extends Plugin
 
 	enum Preset
 	{
-		LEVEL_UP("level_up"),
-		QUEST_COMPLETE("quest_complete"),
-		DIARY_COMPLETE("diary_complete"),
-		COLLECTION_LOG("collection_log"),
-		RARE_DROP("rare_drop"),
-		ECTOPHIAL("ectophial"),
+		LEVEL_UP("level_up", "Level up", "levelUpEnabled"),
+		QUEST_COMPLETE("quest_complete", "Quest complete", "questCompleteEnabled"),
+		DIARY_COMPLETE("diary_complete", "Diary complete", "diaryCompleteEnabled"),
+		COLLECTION_LOG("collection_log", "Collection log", "collectionLogEnabled"),
+		RARE_DROP("rare_drop", "Rare drop", "rareDropEnabled"),
+		ECTOPHIAL("ectophial", "Ectophial teleport", "ectophialEnabled"),
 		// Ported from C Engineer: Completed
-		COMBAT_TASK("combat_task"),
-		SLAYER_TASK("slayer_task"),
-		FARMING_CONTRACT("farming_contract"),
-		HUNTER_RUMOUR("hunter_rumour"),
-		DEATH("death"),
-		GRUBBY_KEY("grubby_key"),
-		LARRANS_KEY("larrans_key"),
-		BRIMSTONE_KEY("brimstone_key"),
+		COMBAT_TASK("combat_task", "Combat task", "combatTaskEnabled"),
+		SLAYER_TASK("slayer_task", "Slayer task", "slayerTaskEnabled"),
+		FARMING_CONTRACT("farming_contract", "Farming contract", "farmingContractEnabled"),
+		HUNTER_RUMOUR("hunter_rumour", "Hunter rumour", "hunterRumourEnabled"),
+		DEATH("death", "Death", "deathEnabled"),
+		GRUBBY_KEY("grubby_key", "Grubby key", "grubbyKeyEnabled"),
+		LARRANS_KEY("larrans_key", "Larran's key", "larransKeyEnabled"),
+		BRIMSTONE_KEY("brimstone_key", "Brimstone key", "brimstoneKeyEnabled"),
 		// Ported from Odablock Sounds
-		PET("pet"),
-		VENGEANCE("vengeance"),
-		REDEMPTION("redemption"),
-		SMITED("smited"),
-		DDS_SPEC("dds_spec"),
-		AGS_SPEC("ags_spec"),
-		ACB_SPEC("acb_spec"),
-		RUBY_BOLT("ruby_bolt"),
-		BANK_PIN("bank_pin"),
-		ZEBAK_ROAR("zebak_roar"),
-		ACCEPT_TRADE("accept_trade"),
-		DECLINE_TRADE("decline_trade"),
-		DISMISS_RANDOM("dismiss_random"),
-		PET_DOG("pet_dog"),
-		TURN_ON_RUN("turn_on_run"),
-		PK_CHEST("pk_chest"),
-		TOA_CHEST("toa_chest"),
-		COX_PURPLE("cox_purple"),
-		COX_WHITE("cox_white"),
-		GEM_CRAB("gem_crab");
+		PET("pet", "Pet drop", "petEnabled"),
+		VENGEANCE("vengeance", "Vengeance", "vengeanceEnabled"),
+		REDEMPTION("redemption", "Redemption proc", "redemptionEnabled"),
+		SMITED("smited", "Prayer hits 0", "smitedEnabled"),
+		DDS_SPEC("dds_spec", "DDS spec", "ddsSpecEnabled"),
+		AGS_SPEC("ags_spec", "AGS spec", "agsSpecEnabled"),
+		ACB_SPEC("acb_spec", "ACB spec", "acbSpecEnabled"),
+		RUBY_BOLT("ruby_bolt", "Ruby bolt proc", "rubyBoltEnabled"),
+		BANK_PIN("bank_pin", "Bank PIN", "bankPinEnabled"),
+		ZEBAK_ROAR("zebak_roar", "Zebak roar", "zebakRoarEnabled"),
+		ACCEPT_TRADE("accept_trade", "Accept trade", "acceptTradeEnabled"),
+		DECLINE_TRADE("decline_trade", "Decline trade", "declineTradeEnabled"),
+		DISMISS_RANDOM("dismiss_random", "Dismiss random event", "dismissRandomEnabled"),
+		PET_DOG("pet_dog", "Pet the dog", "petDogEnabled"),
+		TURN_ON_RUN("turn_on_run", "Turn on run", "turnOnRunEnabled"),
+		PK_CHEST("pk_chest", "Loot key chest", "pkChestEnabled"),
+		TOA_CHEST("toa_chest", "TOA chest", "toaChestEnabled"),
+		COX_PURPLE("cox_purple", "CoX purple", "coxPurpleEnabled"),
+		COX_WHITE("cox_white", "CoX no purple", "coxWhiteEnabled"),
+		GEM_CRAB("gem_crab", "Gemstone crab", "gemCrabEnabled");
 
 		final String fileName;
+		final String displayName;
+		final String configKey;
 
-		Preset(String fileName)
+		Preset(String fileName, String displayName, String configKey)
 		{
 			this.fileName = fileName;
+			this.displayName = displayName;
+			this.configKey = configKey;
 		}
 	}
 
@@ -209,7 +216,7 @@ public class SoundOverridePlugin extends Plugin
 
 		loadOverrides();
 
-		panel = new SoundOverridePanel(this, soundManager, config);
+		panel = new SoundOverridePanel(this, soundManager, config, configManager);
 		navButton = net.runelite.client.ui.NavigationButton.builder()
 			.tooltip("Slyestcat Sound Pack")
 			.icon(net.runelite.client.util.ImageUtil.loadImageResource(SoundOverridePlugin.class, "panel_icon.png"))
@@ -246,6 +253,11 @@ public class SoundOverridePlugin extends Plugin
 	java.util.Set<Preset> getBundledPresets()
 	{
 		return bundledPresets;
+	}
+
+	Set<Integer> getDisabledIds()
+	{
+		return disabledIds;
 	}
 
 	Map<Integer, File> getIdOverrides()
@@ -421,17 +433,44 @@ public class SoundOverridePlugin extends Plugin
 		}
 	}
 
-	private boolean presetEnabled(Preset preset)
+	boolean presetEnabled(Preset preset)
 	{
 		switch (preset)
 		{
+			case LEVEL_UP: return config.levelUpEnabled();
+			case QUEST_COMPLETE: return config.questCompleteEnabled();
+			case DIARY_COMPLETE: return config.diaryCompleteEnabled();
+			case COLLECTION_LOG: return config.collectionLogEnabled();
+			case RARE_DROP: return config.rareDropEnabled();
+			case ECTOPHIAL: return config.ectophialEnabled();
+			case COMBAT_TASK: return config.combatTaskEnabled();
+			case SLAYER_TASK: return config.slayerTaskEnabled();
+			case FARMING_CONTRACT: return config.farmingContractEnabled();
+			case HUNTER_RUMOUR: return config.hunterRumourEnabled();
+			case DEATH: return config.deathEnabled();
+			case GRUBBY_KEY: return config.grubbyKeyEnabled();
+			case LARRANS_KEY: return config.larransKeyEnabled();
+			case BRIMSTONE_KEY: return config.brimstoneKeyEnabled();
+			case PET: return config.petEnabled();
+			case VENGEANCE: return config.vengeanceEnabled();
 			case REDEMPTION: return config.redemptionEnabled();
+			case SMITED: return config.smitedEnabled();
 			case DDS_SPEC: return config.ddsSpecEnabled();
 			case AGS_SPEC: return config.agsSpecEnabled();
 			case ACB_SPEC: return config.acbSpecEnabled();
 			case RUBY_BOLT: return config.rubyBoltEnabled();
 			case BANK_PIN: return config.bankPinEnabled();
 			case ZEBAK_ROAR: return config.zebakRoarEnabled();
+			case ACCEPT_TRADE: return config.acceptTradeEnabled();
+			case DECLINE_TRADE: return config.declineTradeEnabled();
+			case DISMISS_RANDOM: return config.dismissRandomEnabled();
+			case PET_DOG: return config.petDogEnabled();
+			case TURN_ON_RUN: return config.turnOnRunEnabled();
+			case PK_CHEST: return config.pkChestEnabled();
+			case TOA_CHEST: return config.toaChestEnabled();
+			case COX_PURPLE: return config.coxPurpleEnabled();
+			case COX_WHITE: return config.coxWhiteEnabled();
+			case GEM_CRAB: return config.gemCrabEnabled();
 			default: return true;
 		}
 	}

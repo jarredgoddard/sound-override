@@ -1,70 +1,53 @@
 package com.soundoverride;
 
 import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Desktop;
 import java.awt.Dimension;
-import java.awt.FlowLayout;
 import java.io.File;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
-import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.client.config.ConfigManager;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.PluginPanel;
 
 /**
- * Debug panel: shows every preset and ID override, whether a wav is loaded
- * for it, and a play button that routes through the exact same SoundManager
- * path the plugin uses in-game. Lets you verify sounds saved from
- * Sound Override Studio without triggering the real game events.
+ * Sound pack panel: one checkbox per sound that actually exists
+ * (bundled in the jar or present in the sound-overrides folder).
+ * Checkboxes toggle the same enable settings as the plugin config.
  */
 @Slf4j
 public class SoundOverridePanel extends PluginPanel
 {
+	private static final String CONFIG_GROUP = "soundoverride";
+
 	private final SoundOverridePlugin plugin;
 	private final SoundManager soundManager;
 	private final SoundOverrideConfig config;
+	private final ConfigManager configManager;
 	private final JPanel listPanel = new JPanel();
 
-	SoundOverridePanel(SoundOverridePlugin plugin, SoundManager soundManager, SoundOverrideConfig config)
+	SoundOverridePanel(SoundOverridePlugin plugin, SoundManager soundManager,
+		SoundOverrideConfig config, ConfigManager configManager)
 	{
 		this.plugin = plugin;
 		this.soundManager = soundManager;
 		this.config = config;
+		this.configManager = configManager;
 
 		setLayout(new BorderLayout());
 		setBorder(new EmptyBorder(8, 8, 8, 8));
 
-		JPanel header = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
-		header.setBackground(ColorScheme.DARK_GRAY_COLOR);
-
-		JButton reload = new JButton("Reload folder");
-		reload.addActionListener(e -> plugin.reloadOverrides());
-		header.add(reload);
-
-		JButton openFolder = new JButton("Open folder");
-		openFolder.addActionListener(e -> {
-			try
-			{
-				Desktop.getDesktop().open(SoundOverridePlugin.SOUND_DIR);
-			}
-			catch (Exception ex)
-			{
-				log.warn("Couldn't open sound folder", ex);
-			}
-		});
-		header.add(openFolder);
-
 		listPanel.setLayout(new BoxLayout(listPanel, BoxLayout.Y_AXIS));
 		listPanel.setBackground(ColorScheme.DARK_GRAY_COLOR);
-
-		add(header, BorderLayout.NORTH);
 		add(listPanel, BorderLayout.CENTER);
 		refresh();
 	}
@@ -79,37 +62,76 @@ public class SoundOverridePanel extends PluginPanel
 		listPanel.removeAll();
 
 		Map<SoundOverridePlugin.Preset, File> presets = plugin.getPresetSounds();
+		Set<SoundOverridePlugin.Preset> bundled = plugin.getBundledPresets();
 		Map<Integer, File> ids = plugin.getIdOverrides();
 
-		listPanel.add(sectionLabel("Presets (" + presets.size() + "/"
-			+ SoundOverridePlugin.Preset.values().length + " loaded)"));
-
+		boolean anyPreset = false;
+		listPanel.add(sectionLabel("Sounds"));
 		for (SoundOverridePlugin.Preset preset : SoundOverridePlugin.Preset.values())
 		{
 			File f = presets.get(preset);
-			boolean bundled = plugin.getBundledPresets().contains(preset);
-			listPanel.add(row(preset.fileName + ".wav", f,
-				bundled ? "sounds/" + preset.fileName + ".wav" : null));
+			boolean hasSound = f != null || bundled.contains(preset);
+			if (!hasSound)
+			{
+				continue; // only show sounds that actually exist
+			}
+			anyPreset = true;
+
+			JCheckBox box = new JCheckBox(preset.displayName, plugin.presetEnabled(preset));
+			box.setBackground(ColorScheme.DARK_GRAY_COLOR);
+			box.setForeground(java.awt.Color.WHITE);
+			box.setToolTipText(f != null
+				? f.getAbsolutePath()
+				: "Bundled default (override with " + preset.fileName + ".wav)");
+			box.setMaximumSize(new Dimension(Integer.MAX_VALUE, 24));
+			box.addActionListener(e ->
+				configManager.setConfiguration(CONFIG_GROUP, preset.configKey, box.isSelected()));
+			listPanel.add(box);
+		}
+		if (!anyPreset)
+		{
+			listPanel.add(mutedLabel("No sounds loaded yet."));
 		}
 
-		listPanel.add(Box.createVerticalStrut(10));
-		listPanel.add(sectionLabel("ID overrides (" + ids.size() + ")"));
+		if (!ids.isEmpty())
+		{
+			listPanel.add(Box.createVerticalStrut(10));
+			listPanel.add(sectionLabel("Sound replacements"));
+			Set<Integer> disabled = plugin.getDisabledIds();
 
-		if (ids.isEmpty())
-		{
-			JLabel none = new JLabel("none — add e.g. 2739.wav");
-			none.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-			listPanel.add(none);
-		}
-		else
-		{
 			ids.entrySet().stream()
 				.sorted(Map.Entry.comparingByKey())
-				.forEach(e -> listPanel.add(row(e.getKey() + ".wav", e.getValue(), null)));
+				.forEach(entry -> {
+					int soundId = entry.getKey();
+					JCheckBox box = new JCheckBox("Sound " + soundId, !disabled.contains(soundId));
+					box.setBackground(ColorScheme.DARK_GRAY_COLOR);
+					box.setForeground(java.awt.Color.WHITE);
+					box.setToolTipText(entry.getValue().getAbsolutePath());
+					box.setMaximumSize(new Dimension(Integer.MAX_VALUE, 24));
+					box.addActionListener(e -> toggleId(soundId, box.isSelected()));
+					listPanel.add(box);
+				});
 		}
 
 		listPanel.revalidate();
 		listPanel.repaint();
+	}
+
+	private void toggleId(int soundId, boolean enabled)
+	{
+		Set<Integer> disabled = new HashSet<>(plugin.getDisabledIds());
+		if (enabled)
+		{
+			disabled.remove(soundId);
+		}
+		else
+		{
+			disabled.add(soundId);
+		}
+		String joined = disabled.stream().sorted()
+			.map(String::valueOf)
+			.collect(Collectors.joining(","));
+		configManager.setConfiguration(CONFIG_GROUP, "disabledSoundIds", joined);
 	}
 
 	private JLabel sectionLabel(String text)
@@ -120,46 +142,10 @@ public class SoundOverridePanel extends PluginPanel
 		return label;
 	}
 
-	private JPanel row(String name, File file, String bundledResource)
+	private JLabel mutedLabel(String text)
 	{
-		JPanel row = new JPanel(new BorderLayout(6, 0));
-		row.setBackground(ColorScheme.DARK_GRAY_COLOR);
-		row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 26));
-
-		JLabel label = new JLabel(name + (file == null && bundledResource != null ? "  (bundled)" : ""));
-		if (file != null)
-		{
-			label.setForeground(Color.WHITE);
-			label.setToolTipText(file.getAbsolutePath());
-		}
-		else if (bundledResource != null)
-		{
-			label.setForeground(ColorScheme.BRAND_ORANGE);
-			label.setToolTipText("Bundled default — add " + name + " to the sound-overrides folder to override");
-		}
-		else
-		{
-			label.setForeground(ColorScheme.MEDIUM_GRAY_COLOR);
-			label.setToolTipText("No bundled default and no file in sound-overrides folder");
-		}
-		row.add(label, BorderLayout.CENTER);
-
-		if (file != null || bundledResource != null)
-		{
-			JButton play = new JButton("▶");
-			play.setMargin(new java.awt.Insets(0, 6, 0, 6));
-			play.setToolTipText("Play through the plugin's sound path");
-			if (file != null)
-			{
-				play.addActionListener(e -> soundManager.play(file, config.volume()));
-			}
-			else
-			{
-				play.addActionListener(e -> soundManager.playBundled(bundledResource, config.volume()));
-			}
-			row.add(play, BorderLayout.EAST);
-		}
-
-		return row;
+		JLabel label = new JLabel(text);
+		label.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		return label;
 	}
 }
