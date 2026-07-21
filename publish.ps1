@@ -30,12 +30,20 @@ function Assert-Tool($name, $hint) {
     }
 }
 
+# Run a native command whose failure/stderr is EXPECTED (probe calls).
+# Prevents ErrorActionPreference=Stop from treating stderr as fatal.
+function Invoke-Quiet([scriptblock]$cmd) {
+    $eap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { & $cmd 2>&1 | Out-Null } catch { } finally { $ErrorActionPreference = $eap }
+    return $LASTEXITCODE
+}
+
 Assert-Tool git "winget install Git.Git"
 Assert-Tool gh  "winget install GitHub.cli"
 
 # gh must be authenticated
-gh auth status 2>$null
-if ($LASTEXITCODE -ne 0) {
+if ((Invoke-Quiet { gh auth status }) -ne 0) {
     Write-Host "GitHub CLI isn't authenticated. Running 'gh auth login'..." -ForegroundColor Yellow
     gh auth login
     if ($LASTEXITCODE -ne 0) { exit 1 }
@@ -80,16 +88,14 @@ if (-not (Test-Path ".git")) {
 
 git add -A
 # Commit only if there are staged changes
-git diff --cached --quiet
-if ($LASTEXITCODE -ne 0) {
+if ((Invoke-Quiet { git diff --cached --quiet }) -ne 0) {
     git commit -m "Sound Override plugin"
 } else {
     Write-Host "Nothing new to commit." -ForegroundColor Yellow
 }
 
 # Create the GitHub repo if it doesn't exist yet
-gh repo view "$GitHubUser/$RepoName" 2>$null | Out-Null
-if ($LASTEXITCODE -ne 0) {
+if ((Invoke-Quiet { gh repo view "$GitHubUser/$RepoName" }) -ne 0) {
     gh repo create "$GitHubUser/$RepoName" --public --source . --remote origin --push
     if ($LASTEXITCODE -ne 0) { Write-Host "Repo creation failed." -ForegroundColor Red; exit 1 }
 } else {
@@ -117,14 +123,14 @@ Write-Host "`n=== Opening Plugin Hub submission PR ===" -ForegroundColor Cyan
 $hubDir = Join-Path ([System.IO.Path]::GetTempPath()) "plugin-hub-$([guid]::NewGuid().ToString('N').Substring(0,8))"
 
 # Fork (no-op if already forked) and clone the fork
-gh repo fork runelite/plugin-hub --clone=false 2>$null | Out-Null
+Invoke-Quiet { gh repo fork runelite/plugin-hub --clone=false } | Out-Null
 gh repo clone "$GitHubUser/plugin-hub" $hubDir -- --depth 1
 if ($LASTEXITCODE -ne 0) { Write-Host "Couldn't clone your plugin-hub fork." -ForegroundColor Red; exit 1 }
 
 Push-Location $hubDir
 try {
     # Stay in sync with upstream master so the PR is clean
-    git remote add upstream https://github.com/runelite/plugin-hub.git 2>$null
+    Invoke-Quiet { git remote add upstream https://github.com/runelite/plugin-hub.git } | Out-Null
     git fetch upstream master --depth 1
     git checkout -B "add-$RepoName" upstream/master
 
